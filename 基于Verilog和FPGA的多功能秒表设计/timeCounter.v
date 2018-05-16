@@ -37,9 +37,13 @@ module stopwatch_01(clk, key_reset, key_start_pause, key_display_stop,
 	reg[31:0] counter_reset;//按键状态时间计数器
 	//**start_1_time为1计时0不计时**
 	reg start_1_time;//消抖动用状态寄存器--for counter/pause KEY
+	reg start_2_time;
+	reg start_3_time;
 	reg[31:0] counter_start;//按键状态时间计数器
 	//**display_1_time为1不实时显示0实时显示**
 	reg display_1_time;//消抖动用状态寄存器--for Key_display_refresh/pause
+	reg display_2_time;
+	reg display_3_time;
 	reg[31:0] counter_display;//按键状态时间计数器
 
 	reg start;//工作状态寄存器
@@ -55,11 +59,12 @@ module stopwatch_01(clk, key_reset, key_start_pause, key_display_stop,
 	sevenseg LED8_msecond_display_low(msecond_display_low, hex0);
 
 	always@(posedge clk)
-	begin		
-		if (key_start_pause == 0 && start_1_time == 1)//如果计时按钮被按下,且之前不是按下的
+	begin
+		if (key_start_pause == 0 && start_1_time == 1 && start_2_time == 1 && start_3_time == 1)//如果计时按钮被按下,且之前不是按下的
 			counter_work = 1 - counter_work;//反转是否计时状态
-		if (key_display_stop == 0 && display_1_time == 1)//如果显示按钮被按下,且之前不是按下的
+		if (key_display_stop == 0 && display_1_time == 1 && display_2_time == 1 && display_3_time == 1)//如果显示按钮被按下,且之前不是按下的
 			display_work = 1 - display_work;//反转是否显示状态
+			
 		if (key_reset == 1'b0)//如果复位被按下
 		begin
 			msecond_counter_low = 0;
@@ -80,6 +85,10 @@ module stopwatch_01(clk, key_reset, key_start_pause, key_display_stop,
 		end
 		
 		//**记录这一次的button状态以供下次使用**
+		start_3_time = start_2_time;
+		display_3_time = display_2_time;
+		start_2_time = start_1_time;
+		display_2_time = display_1_time;
 		start_1_time = key_start_pause;
 		display_1_time = key_display_stop;
 			
