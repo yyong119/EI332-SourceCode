@@ -32,7 +32,9 @@
             \includegraphics[width=\textwidth]{bdf.png}
             
         \subsection{verilog代码设计}
-        	\par 详细请见代码注释。消抖的实现方式是记录之前的电位高低，随时与当前的电位高低对比，如果之前基本不是高电平，那么现在的低电平将不会导致状态的改变；现在的低电平只有在之前是高电平时才会改变计时与显示的状态。当然reset复位不受影响，因为从肉眼效果来看几次高频率的复位可以基本等效成1次复位。
+        	\par 详细请见代码注释。
+            \par 计时主要是6个寄存器，分别代表毫秒高低位、秒高低位、分高低位，用多个if嵌套判断是否进位，最后一位的进位是直接清零。显示则是另外6个对应的寄存器，如果处于实时显示状态，则每次更新之前表示时间的寄存器后，把6个值赋给这6个用于显示的寄存器。
+            \par 消抖的实现方式是记录之前的电位高低，随时与当前的电位高低对比，如果之前基本不是高电平，那么现在的低电平将不会导致状态的改变；现在的低电平只有在之前连续几个周期内是高电平时才会改变计时与显示的状态。当然reset复位不受影响，因为从肉眼效果来看几次高频率的复位可以基本等效成1次复位。
         
     \section{具体步骤}
     
@@ -44,24 +46,25 @@
         \par 3) 消抖解决方案
         \par 具体代码实现请看本实验报告的第4部分\emph{完整代码}
         
-        \subsection{完成BDF设计} 根据实验要求把四个输入和六个输出分配好，用input和output的pin连接，以及保证基本的美观性和可读性。
+        \subsection{完成BDF设计} 由于该实验只需要50MHz时钟频率，因此没有使用BDF中的pll模块，只使用了自己的verilog代码所生成的symbol，其中4个输入分别是时钟信号、复位、计时按钮、显示按钮，10个输出中6个是显像管，另外4个用于显示各种状态。
         
-        \subsection{针脚分配} 对于输入的button每个都有1个针脚，对于输出的数字每个都有7个针脚，按照实验手册进行匹配。
-        \subsection{编译与写入} 把文件编译，写入开发板中。
+        \subsection{针脚分配} 对于输入的button和时钟信号每个都要分配1个针脚；对于输出的数字显像管每个都有7个针脚，按照实验手册进行匹配；由于实验未强制要求要使用LED灯，因此我没有对四个LED灯的输出进行针脚分配，如果需要的话，我觉得可以设置为电源状态、是否被复位、是否处于计时状态、是否实时显示计时。
+        \subsection{编译与写入} 编译文件，通过编译后把内容烧写到FPGA板中。
     
     \section{完整代码}
     
-    \par 注：由于latex排版代码不是很美观所以采用截图，如果需要完整代码，请至Github下载。地址https://github.com/yyong119/EI332SourceCode
-    \par //****之中的注释是我认为比较关键的地方
- 	\newline
-    \includegraphics[width=\textwidth]{1-43.png}
+    \par 注：由于latex排版代码不是很美观所以采用sublime编辑器并截图，如果需要完整代码，请至Github下载。我的Github地址https://github.com/yyong119/EI332SourceCode
+    \par //**words**之中的注释是我认为比较关键的地方
+	\newline
+    \includegraphics[width=\textwidth]{1-40.jpg}
     \newline
-    \includegraphics[width=\textwidth]{44-86.png}
+    \includegraphics[width=\textwidth]{41-80.jpg}
     \newline
-    \includegraphics[width=\textwidth]{87-128.png}
+    \includegraphics[width=\textwidth]{81-120.jpg}
     \newline
-    \includegraphics[width=\textwidth]{129-162.png}
-
+    \includegraphics[width=\textwidth]{121-160.jpg}
+    \newline
+    \includegraphics[width=\textwidth]{161-end.jpg}
 
 
 \end{document}
