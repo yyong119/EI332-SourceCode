@@ -1,0 +1,145 @@
+\documentclass{article}
+
+\author{毛咏}
+\title{基本单周期CPU设计}
+
+\usepackage[fontset=ubuntu]{ctex}
+\usepackage{indentfirst}
+\setlength{\parindent}{2em}
+\usepackage{graphicx}
+\usepackage{listings}
+
+\begin{document}
+	\maketitle
+    \tableofcontents
+    \newpage
+    
+    \section{实验目的}
+    
+    	\par 1) 理解计算机5大组成部分的协调工作原理，理解存储程序自动执行的原理。
+        \par 2) 掌握运算器、存储器、控制器的设计和实现原理。重点掌握控制器设计原理和实现方法。
+        \par 3) 掌握I/O端口的设计方法，理解I/O地址空间的设计方法。
+        \par 4) 会通过设计I/O端口与外部设备进行信息交互。
+	
+	\section{设计思路}
+    
+    	\subsection{整体思路} 根据课件ppt的单周期cpu的设计图，讲各个模块衔接起来，即把每个模块的输入输出端口连接起来以使各模块能正常得到并发出信息。
+        
+        \subsection{顶层文件} 顶层文件是sc$\_$computer。其中实例化了cpu、datamen、instmem三个模块。
+        
+        \subsection{I/O} lw指令从FPGA板的十个开关中读取9个电位，其中8位分别表示2个4位二进制数，另外一位表示是否为重置，2个二进制数分别对应顶层文件中的in$\_$port0，in$\_$port1，重置位对应resetn。输出是3组2位的数码管，依次是两个输入以及一个输出的结果的显示，对应顶层文件接口中的out$\_$port0，out$\_$port1，out$\_$port2。
+        \par lw指令把地址为c0和c4的数据取出，这两个地址即FPGA板上的8个switch。sw指令把数据保存到80、84和88中，这三个地址即FPGA上的三组2个的数码管。
+        
+        \subsection{测试指令} 测试主要实现是把两个输入的无符号的数字相加，输出结果。
+        \newline
+        \includegraphics[width=\textwidth, height = 6cm]{instmem.png}
+        
+        
+    \section{具体步骤}
+    
+    	\subsection{初始化} 设备驱动安装、在新建设备时选择实验设备的型号、设置时钟脉冲频率等。
+        
+        \subsection{实现代码} 大部分单周期CPU代码已经给出，主要实现了control unit以及I/O代码，以及对于已给代码中一些接口的更改。
+        \par 1) control unit中主要是填补真值表。
+        \par 2) I/O部分主要是定义lw和sw时的地址。
+        \par 3) 接口更改主要是在原来的基础上增加了一个输出端口，以及这一端口带来的一系列非顶层文件中的端口的增加；同时删去了clock这个时钟，输入只有mem$\_$clock，clock由内存时钟上升沿改变电位得到，即频率是内存时钟的一半。
+        \par 具体代码实现请看本实验报告的第4部分\emph{代码}
+        
+        \subsection{针脚分配} 输入包含了单独的resetn以及clock，还有8个二进制数字的电位；输出主要是6个数码管的每个针脚，每个数码管有7个针脚，这次实验的输出2位采用了16进制，因此对于每个out$\_$port数码管的7个针脚将会有16种不同的电位。
+        
+        \subsection{调试} 这次实验的代码整体较多，期间出现了各种错误，比如代码编译卡在35\%，写入板子失败等等。主要时间也是花在了这一部分。
+        
+        \subsection{编译与写入} 编译文件，通过编译后把内容烧写到FPGA板中。
+    
+    \section{代码} 注：如果需要完整代码，我的Github地址https://github.com/yyong119/EI332SourceCode
+    \newline
+    \par \emph{顶层文件}
+    \lstset{language=verilog}
+    \begin{lstlisting}
+    module sc_computer (resetn,mem_clk,in_port0,in_port1,out_port0,
+    out_port1,out_port2,HEX0,HEX1,HEX2,HEX3,HEX4,HEX5);
+	input resetn, mem_clk;
+	wire clock, wmem, imem_clk, dmem_clk;
+	input [3:0]  in_port0, in_port1;
+	wire [31:0] pc,inst,aluout,memout;
+	output [31:0] 	out_port0, out_port1, out_port2;
+	wire[31:0] out_port0, out_port1, out_port2, data;
+	output wire [6:0] HEX0,HEX1,HEX2,HEX3,HEX4,HEX5;
+	half_frequency hf(resetn,mem_clk,clock);
+	sc_cpu cpu (clock,resetn,inst,memout,pc,wmem,aluout,data);
+	sc_instmem  imem (pc,inst,clock,mem_clk,imem_clk);
+	sc_datamem  dmem (aluout,data,memout,wmem,clock,mem_clk,
+    dmem_clk,resetn,in_port0,in_port1,out_port0,out_port1,out_port2); 
+	sevenseg s0(out_port0[3:0],HEX4);
+	sevenseg s1(out_port0[7:4],HEX5);
+	sevenseg s2(out_port1[3:0],HEX2);
+	sevenseg s3(out_port1[7:4],HEX3);
+	sevenseg s4(out_port2[3:0],HEX0);
+	sevenseg s5(out_port2[7:4],HEX1);
+endmodule
+module half_frequency(resetn,mem_clk,clock);
+	input resetn,mem_clk;
+	output clock;
+	reg clock;
+	always @(posedge mem_clk)
+	begin
+		if(~resetn) clock <= 0;
+		clock <= ~clock;
+	end
+endmodule
+    \end{lstlisting}
+	
+	\par \emph{I/O输入输出部分}
+    \lstset{language=verilog}
+    \begin{lstlisting}
+    module io_input_reg (addr,io_clk,io_read_data,in_port0,in_port1); 
+    input  [31:0]  addr, in_port0,in_port1; 
+    input          io_clk; 
+    output [31:0]  io_read_data; 
+    reg    [31:0]  in_reg0, in_reg1;     // input port0&1
+    io_input_mux io_imput_mux2x32(in_reg0,in_reg1,addr[7:2],io_read_data); 
+    always @(posedge io_clk)  
+    begin           
+        in_reg0 <= in_port0;   // 输入端口在 io_clk 上升沿时进行数据锁存
+        in_reg1 <= in_port1;   // 输入端口在 io_clk 上升沿时进行数据锁存
+    end 
+endmodule
+module io_input_mux(a0,a1,sel_addr,y);     
+    input   [31:0]  a0,a1;     
+    input   [ 5:0]  sel_addr;     
+    output  [31:0]  y;     
+    reg     [31:0]  y;         
+    always @ *     
+    case (sel_addr) 
+       6'b110000: y = a0;
+       6'b110001: y = a1;
+       endcase 
+endmodule
+
+module io_output_reg(addr,datain,write_io_enable,io_clk,clrn,
+out_port0,out_port1,out_port2);
+	input [31:0] addr, datain;
+	input write_io_enable, io_clk, clrn;
+	output [31:0] out_port0, out_port1, out_port2;
+	reg [31:0] out_port0, out_port1, out_port2;
+	always @(posedge io_clk or negedge clrn)
+	begin
+		if(clrn == 0)
+		begin
+			out_port0 <= 0;
+			out_port1 <= 0;
+			out_port2 <= 0;
+		end
+		else begin
+			if(write_io_enable == 1)
+			case(addr[7:2])
+				6'b100000: out_port0 <= datain;//80h
+				6'b100001: out_port1 <= datain;//84h
+				6'b100010: out_port2 <= datain;//88h
+			endcase
+		end
+	end
+endmodule
+    \end{lstlisting}
+
+\end{document}
