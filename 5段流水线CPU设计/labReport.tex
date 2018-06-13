@@ -1,0 +1,139 @@
+\documentclass{article}
+
+\author{毛咏}
+\title{5段流水线CPU设计}
+
+\usepackage[fontset=ubuntu]{ctex}
+\usepackage{indentfirst}
+\setlength{\parindent}{2em}
+\usepackage{graphicx}
+\usepackage{listings}
+
+\begin{document}
+	\maketitle
+    \tableofcontents
+    \newpage
+    
+    \section{实验目的}
+    
+    	\par 1) 理解计算机指令流水线的协调工作原理，初步掌握流水线的设计和实现原 理。
+        \par 2) 深刻理解流水线寄存器在流水线实现中所起的重要作用。
+        \par 3) 深刻理解流水线寄存器在流水线实现中所起的重要作用。
+        \par 4) 掌握运算器、寄存器堆、存储器、控制器在流水工作方式下，有别于实验一 的设计和实现方法。
+        \par 5) 掌握流水方式下，通过 I/O端口与外部设备进行信息交互的方法。
+	
+	\section{设计思路}
+    
+    	\subsection{整体思路} 根据课件ppt的流水线cpu的设计图，将各个模块衔接起来，即把每个模块的输入输出端口连接起来以使各模块能正常得到并发出信息。相比单周期，增加了各个阶段可能发生的数据冒险和控制冒险，详细请见下方\emph{关于冒险}
+        
+        \subsection{顶层文件} 顶层文件是pl$\_$computer。其中实例化了pipe\_cpu、sc\_datamen、sc\_instmem三个模块。由于在我的设计中datamem和instmem部分核心代码没有改变，因此只是把单周期的直接拿过来。
+        
+        \subsection{I/O} 为了提现出流水线冒险的处理，采用了同学提前写好的计算Fibonacci结果的mif文件，主要从10个switch读入一个10位的二进制数x，在数码管上显示Fibonacci数列中的第x项。具体代码实现以及针脚类似单周期CPU，此处省略。
+        
+        \subsection{流水线寄存器} 流水线寄存器分别在if与id、id与exe、exe与mem、mem与wb之间。代码中的文件如latch\_ifid实现了寄存器功能。主要实现的功能就是对于前一阶段产生的可能用于后一阶段的数据进行暂存。
+        
+        \subsection{关于冒险} 解决冒险是流水线CPU中主要的部分。由于代码以及FPGA板中的过程无法触发结构冒险，因此没有对结构冒险的处理。
+        	\subsubsection{数据冒险} 对于如LW之后出现ADD或SUB形式的数据冒险，无法使用Forwarding解决，因此使用了阻塞，具体到\emph{代码}中是bubblecontrol模块。对于ADD之后ADD的数据冒险，采用了forwarding解决，比如ALU计算后的结果再次送到ALU的输入口。从ppt中学习可知，对于ADD、ADD、ADD的情况（三个连续的R型指令中带有同一个寄存器操作）也需要特殊判断。具体到\emph{代码}中是forwarding\_id、forwardingcontrol。
+        	\subsubsection{控制冒险} 对于mif中的bne指令，分支可能会引起控制冒险。在不追求效率的情况下，我主要还是采用了flush冲刷解决控制冒险（其实是分支预测不会实现……）。具体到\emph{代码}中可见ifid阶段的\emph{流水线寄存器}。
+        
+        \subsection{测试} 主要功能是实现输出第x项Fibonacci数。主要体现了lw之后的add所造成的数据冒险以及bne的控制冒险。
+        
+        
+    \section{具体步骤}
+    
+    	\subsection{初始化} 设备驱动安装、在新建设备时选择实验设备的型号、设置时钟脉冲频率等。
+        
+        \subsection{实现代码} 书上所给代码实现方式并不是很习惯，因此我是直接从单周期CPU改向流水线CPU的。主要是对单周期的sc\_cpu部分进行了重大修改，加入了流水线寄存器和冒险处理。
+        \par 具体代码实现请看本实验报告的第4部分\emph{代码}。
+        
+        \subsection{针脚分配} 输入包含了单独的resetn以及clock，还有10个二进制数字的电位；输出主要是6个数码管的每个针脚，每个数码管有7个针脚，实验的输出6位采用了16进制，因此对于每个out$\_$port数码管的7个针脚将会有16种不同的电位。
+        
+        \subsection{编译与写入} 编译文件，通过编译后把内容烧写到FPGA板中。
+    
+    \section{代码} 注：如果需要完整代码，我的Github地址https://github.com/yyong119/EI332SourceCode。由于和单周期CPU相比，I/O模块的变换不大，因此此处不再贴出I/O代码，着重点在流水线寄存器和冒险的解决。
+    \newline
+    \par \emph{forwarding部分}
+    \lstset{language=verilog}
+    \begin{lstlisting}
+   	module forwardingcontrol (a0,a1,sorce,quire,y,enable);
+    input [31:0] a0,a1;
+    input [4:0] sorce,quire;
+    input enable;
+    output [31:0] y;
+    wire s = enable & ~(|(sorce^quire));
+    assign y = s ? a1 : a0;
+	endmodule
+	module forwarding_id (a0,a1,a2,sorce1,sorce2,quire,y,enable1,enable2);
+      input [31:0] a0,a1,a2;
+      input [4:0] sorce1,sorce2,quire;
+      input enable1,enable2;
+      output [31:0] y;
+      reg    [31:0] y;
+      always @(*)
+      begin
+          if(enable1&&sorce1==quire && quire!=0)
+          begin
+              y = a1;
+          end else begin
+              if(enable2&&sorce2==quire && quire!=0)
+              begin
+                  y = a2;
+              end else begin
+                  y = a0;
+              end
+          end 
+      end
+  	endmodule
+    \end{lstlisting}
+	
+	\par \emph{bubble部分}
+    \lstset{language=verilog}
+    \begin{lstlisting}
+    module bubblecontrol (rs,rt,wn,wreg,m2reg,imme,freeze);
+       input [4:0] rs,rt,wn;
+       input wreg, m2reg,imme;
+       output freeze;
+       reg freeze;
+       always @(*)
+       begin
+         if((rs==wn || rt==wn && ~imme )&& wreg && m2reg)
+            begin
+            freeze = 1;
+            end else begin
+              freeze = 0;
+            end
+       end
+    endmodule
+    \end{lstlisting}
+
+	\par \emph{流水线寄存器ifid}
+    \lstset{language=verilog}
+    \begin{lstlisting}
+    module latch_ifid (clrn,clk,enable,flush,in_ins,in_p4,out_ins,out_p4); 
+    input   [31:0]  in_ins,in_p4; 
+    input           enable,clk,clrn,flush;        
+    output  [31:0]  out_ins,out_p4; 
+    reg     [31:0]  out_ins,out_p4;  
+    always @(posedge clk or negedge clrn)         
+    begin           
+        if (clrn == 0)               
+        begin                 // reset                 
+            out_ins <= 0; 
+            out_p4 <= 0;
+        end else begin 
+            if(flush==1)
+            begin 
+                out_ins <=0; 
+                out_p4<=0;
+            end else begin
+                if (enable == 1)
+                begin                    
+                    out_ins <= in_ins;          
+                    out_p4 <= in_p4;
+                end
+            end
+        end
+    end
+    endmodule
+    \end{lstlisting}
+\end{document}

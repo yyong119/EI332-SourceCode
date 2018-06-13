@@ -1,0 +1,29 @@
+module latch_ifid (clrn,clk,enable,flush,in_ins,in_p4,out_ins,out_p4); 
+
+input   [31:0]  in_ins; 
+input           enable,clk;
+input           clrn;
+input           flush;        
+//reset signal. if necessary,can use this signal to reset the output to 0. 
+output  [31:0]  out_ins; 
+ 
+reg     [31:0]  out_ins;  
+
+
+always @(posedge clk or negedge clrn)         
+    begin           
+        if (clrn == 0||flush==1)               
+            begin                 // reset                 
+                out_ins <=0; 
+                p4<=0;
+        end else  begin                 
+                if (enable == 1)
+                    begin                    
+                    out_ins <= in_ins;          
+                    p4 <=0 ;
+                    end
+                end        
+    end
+
+
+ 
